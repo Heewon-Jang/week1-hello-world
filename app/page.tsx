@@ -4,21 +4,36 @@ import { after } from "next/server";
 import { getUserAndProfile, needsName } from "@/lib/supabase/server";
 import { getFeed, getLatestNews } from "@/lib/captions";
 import { ensureTodaysNews, newsDate } from "@/lib/news";
+import LoginButton from "./login-button";
 import VoteButtons from "./vote-buttons";
 
 export default async function Home() {
   const { supabase, user, profile } = await getUserAndProfile();
 
+  // Content is members-only (also enforced by RLS): show a sign-in page.
+  if (!user) {
+    return (
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+        <h1 className="text-3xl font-bold">Caption Rater 😂</h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Vote on AI-written captions for photos from around Columbia and NYC,
+          plus a fresh campus news headline every day.
+        </p>
+        <LoginButton />
+      </main>
+    );
+  }
+
   // Logged in but no name yet: ask for it first.
-  if (user && needsName(profile)) {
+  if (needsName(profile)) {
     redirect("/onboarding");
   }
 
   let images, news;
   try {
     [images, news] = await Promise.all([
-      getFeed(supabase, user?.id ?? null),
-      getLatestNews(supabase, user?.id ?? null),
+      getFeed(supabase, user.id),
+      getLatestNews(supabase, user.id),
     ]);
   } catch (error) {
     return <main className="p-6">Error: {(error as Error).message}</main>;
@@ -31,19 +46,13 @@ export default async function Home() {
 
   return (
     <main className="mx-auto w-full max-w-2xl p-6">
-      {user ? (
-        <p className="mb-6 rounded-lg bg-green-50 p-4 text-green-900 dark:bg-green-950 dark:text-green-100">
-          Hey {profile?.first_name}! Vote on the funniest captions, or{" "}
-          <Link href="/upload" className="font-semibold underline">
-            upload a photo
-          </Link>{" "}
-          and let AI caption it.
-        </p>
-      ) : (
-        <p className="mb-6 rounded-lg bg-gray-100 p-4 dark:bg-gray-900">
-          Sign in to vote on captions and upload your own photos.
-        </p>
-      )}
+      <p className="mb-6 rounded-lg bg-green-50 p-4 text-green-900 dark:bg-green-950 dark:text-green-100">
+        Hey {profile?.first_name}! Vote on the funniest captions, or{" "}
+        <Link href="/upload" className="font-semibold underline">
+          upload a photo
+        </Link>{" "}
+        and let AI caption it.
+      </p>
 
       {news && (
         <section
@@ -71,7 +80,7 @@ export default async function Home() {
                   captionId={caption.id}
                   score={caption.score}
                   myVote={caption.myVote}
-                  signedIn={!!user}
+                  signedIn
                 />
               </li>
             ))}
@@ -84,11 +93,9 @@ export default async function Home() {
       {images.length === 0 && (
         <p className="text-gray-600 dark:text-gray-400">
           No images yet.{" "}
-          {user && (
-            <Link href="/upload" className="font-semibold underline">
-              Upload the first one!
-            </Link>
-          )}
+          <Link href="/upload" className="font-semibold underline">
+            Upload the first one!
+          </Link>
         </p>
       )}
 
@@ -113,7 +120,7 @@ export default async function Home() {
                     captionId={caption.id}
                     score={caption.score}
                     myVote={caption.myVote}
-                    signedIn={!!user}
+                    signedIn
                   />
                 </li>
               ))}

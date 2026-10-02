@@ -17,23 +17,46 @@ export type FeedImage = {
   captions: Caption[];
 };
 
+const SIGNED_URL_SECONDS = 60 * 60;
+
+// The images bucket is private, so each photo gets a short-lived signed URL.
+async function signImageUrls(supabase: Supabase, paths: string[]) {
+  const urls = new Map<string, string>();
+  if (!paths.length) return urls;
+
+  const { data, error } = await supabase.storage
+    .from("images")
+    .createSignedUrls(paths, SIGNED_URL_SECONDS);
+  if (error) throw new Error(error.message);
+
+  for (const { path, signedUrl } of data) {
+    if (path && signedUrl) urls.set(path, signedUrl);
+  }
+  return urls;
+}
+
 // Newest images first, each with its captions sorted by score.
-// Votes are only readable when logged in (RLS), so logged-out visitors see 0s.
-export async function getFeed(supabase: Supabase, userId: string | null, limit = 30) {
+export async function getFeed(supabase: Supabase, userId: string, limit = 30) {
   const { data: images, error } = await supabase
     .from("images")
-    .select("id, image_url, description, created_at, captions(id, text)")
+    .select("id, storage_path, description, created_at, captions(id, text)")
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw new Error(error.message);
 
   const captionIds = images.flatMap((image) => image.captions.map((c) => c.id));
-  const { scores, myVotes } = await getVotes(supabase, userId, captionIds);
+  const [{ scores, myVotes }, urls] = await Promise.all([
+    getVotes(supabase, userId, captionIds),
+    signImageUrls(supabase, images.map((image) => image.storage_path)),
+  ]);
 
   return images.map(
     (image): FeedImage => ({
-      ...image,
+      id: image.id,
+      image_url: urls.get(image.storage_path) ?? "",
+      description: image.description,
+      created_at: image.created_at,
       captions: image.captions
         .map((c) => ({
           ...c,
@@ -55,7 +78,7 @@ export type NewsItem = {
 };
 
 // The most recent daily headline with its captions sorted by score.
-export async function getLatestNews(supabase: Supabase, userId: string | null) {
+export async function getLatestNews(supabase: Supabase, userId: string) {
   const { data: news, error } = await supabase
     .from("news_items")
     .select("id, news_date, headline, url, source, captions(id, text)")
@@ -89,24 +112,28 @@ export async function getTopCaptions(
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data: captions, error } = await supabase
     .from("captions")
-    .select("id, text, images(id, image_url), news_items(id, headline)")
+    .select("id, text, images(id, storage_path), news_items(id, headline)")
     .gte("created_at", since);
 
   if (error) throw new Error(error.message);
 
-  const { scores, myVotes } = await getVotes(
-    supabase,
-    userId,
-    captions.map((c) => c.id)
-  );
+  // Many-to-one embeds: PostgREST returns one object (or null), not an array.
+  const rows = captions.map((c) => ({
+    ...c,
+    image: c.images as unknown as { id: number; storage_path: string } | null,
+    news: c.news_items as unknown as { id: number; headline: string } | null,
+  }));
+  const [{ scores, myVotes }, urls] = await Promise.all([
+    getVotes(supabase, userId, rows.map((c) => c.id)),
+    signImageUrls(supabase, rows.flatMap((c) => (c.image ? [c.image.storage_path] : []))),
+  ]);
 
-  return captions
+  return rows
     .map((c) => ({
       id: c.id,
       text: c.text,
-      // Many-to-one embeds: PostgREST returns one object (or null), not an array.
-      image: c.images as unknown as { id: number; image_url: string } | null,
-      news: c.news_items as unknown as { id: number; headline: string } | null,
+      image: c.image && { id: c.image.id, image_url: urls.get(c.image.storage_path) ?? "" },
+      news: c.news,
       score: scores.get(c.id) ?? 0,
       myVote: myVotes.get(c.id) ?? 0,
     }))
@@ -115,10 +142,10 @@ export async function getTopCaptions(
     .slice(0, limit);
 }
 
-async function getVotes(supabase: Supabase, userId: string | null, captionIds: number[]) {
+async function getVotes(supabase: Supabase, userId: string, captionIds: number[]) {
   const scores = new Map<number, number>();
   const myVotes = new Map<number, number>();
-  if (!userId || !captionIds.length) return { scores, myVotes };
+  if (!captionIds.length) return { scores, myVotes };
 
   const { data: votes, error } = await supabase
     .from("caption_votes")
