@@ -45,7 +45,42 @@ export async function getFeed(supabase: Supabase, userId: string | null, limit =
   );
 }
 
-// Highest-scoring captions from images posted in the last `days` days.
+export type NewsItem = {
+  id: number;
+  news_date: string;
+  headline: string;
+  url: string;
+  source: string;
+  captions: Caption[];
+};
+
+// The most recent daily headline with its captions sorted by score.
+export async function getLatestNews(supabase: Supabase, userId: string | null) {
+  const { data: news, error } = await supabase
+    .from("news_items")
+    .select("id, news_date, headline, url, source, captions(id, text)")
+    .order("news_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!news) return null;
+
+  const { scores, myVotes } = await getVotes(
+    supabase,
+    userId,
+    news.captions.map((c) => c.id)
+  );
+
+  return {
+    ...news,
+    captions: news.captions
+      .map((c) => ({ ...c, score: scores.get(c.id) ?? 0, myVote: myVotes.get(c.id) ?? 0 }))
+      .sort((a, b) => b.score - a.score || a.id - b.id),
+  } as NewsItem;
+}
+
+// Highest-scoring captions (on photos or news) from the last `days` days.
 export async function getTopCaptions(
   supabase: Supabase,
   userId: string,
@@ -54,8 +89,8 @@ export async function getTopCaptions(
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data: captions, error } = await supabase
     .from("captions")
-    .select("id, text, images!inner(id, image_url, created_at)")
-    .gte("images.created_at", since);
+    .select("id, text, images(id, image_url), news_items(id, headline)")
+    .gte("created_at", since);
 
   if (error) throw new Error(error.message);
 
@@ -69,8 +104,9 @@ export async function getTopCaptions(
     .map((c) => ({
       id: c.id,
       text: c.text,
-      // Many-to-one embed: PostgREST returns one object, not an array.
-      image: c.images as unknown as { id: number; image_url: string },
+      // Many-to-one embeds: PostgREST returns one object (or null), not an array.
+      image: c.images as unknown as { id: number; image_url: string } | null,
+      news: c.news_items as unknown as { id: number; headline: string } | null,
       score: scores.get(c.id) ?? 0,
       myVote: myVotes.get(c.id) ?? 0,
     }))

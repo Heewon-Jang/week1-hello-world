@@ -22,7 +22,7 @@ export default async function TopPage() {
     <main className="mx-auto w-full max-w-2xl p-6">
       <h1 className="mb-2 text-2xl font-bold">Top captions this week 🏆</h1>
       <p className="mb-6 text-gray-600 dark:text-gray-400">
-        The highest-voted captions from photos posted in the last 7 days.
+        The highest-voted captions on photos and news from the last 7 days.
       </p>
 
       {captions.length === 0 && (
@@ -43,14 +43,24 @@ export default async function TopPage() {
             <span className="w-8 text-center text-xl font-bold">
               {MEDALS[index] ?? index + 1}
             </span>
-            <Link href={`/#image-${caption.image.id}`} className="shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={caption.image.image_url}
-                alt=""
-                className="h-16 w-16 rounded object-cover"
-              />
-            </Link>
+            {caption.image ? (
+              <Link href={`/#image-${caption.image.id}`} className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={caption.image.image_url}
+                  alt=""
+                  className="h-16 w-16 rounded object-cover"
+                />
+              </Link>
+            ) : (
+              <Link
+                href="/#news"
+                title={caption.news?.headline}
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded bg-amber-100 text-3xl dark:bg-amber-950"
+              >
+                📰
+              </Link>
+            )}
             <p className="flex-1">{caption.text}</p>
             <VoteButtons
               captionId={caption.id}

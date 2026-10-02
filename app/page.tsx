@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { getUserAndProfile, needsName } from "@/lib/supabase/server";
-import { getFeed } from "@/lib/captions";
+import { getFeed, getLatestNews } from "@/lib/captions";
+import { ensureTodaysNews, newsDate } from "@/lib/news";
 import VoteButtons from "./vote-buttons";
 
 export default async function Home() {
@@ -12,11 +14,19 @@ export default async function Home() {
     redirect("/onboarding");
   }
 
-  let images;
+  let images, news;
   try {
-    images = await getFeed(supabase, user?.id ?? null);
+    [images, news] = await Promise.all([
+      getFeed(supabase, user?.id ?? null),
+      getLatestNews(supabase, user?.id ?? null),
+    ]);
   } catch (error) {
     return <main className="p-6">Error: {(error as Error).message}</main>;
+  }
+
+  // First visit of the day: pick today's headline in the background.
+  if (news?.news_date !== newsDate()) {
+    after(() => ensureTodaysNews().catch((error) => console.error("Daily news:", error)));
   }
 
   return (
@@ -33,6 +43,40 @@ export default async function Home() {
         <p className="mb-6 rounded-lg bg-gray-100 p-4 dark:bg-gray-900">
           Sign in to vote on captions and upload your own photos.
         </p>
+      )}
+
+      {news && (
+        <section
+          id="news"
+          className="mb-10 scroll-mt-6 overflow-hidden rounded-lg border border-amber-300 dark:border-amber-800"
+        >
+          <div className="bg-amber-50 p-4 dark:bg-amber-950">
+            <p className="mb-1 text-sm font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+              📰 Today&apos;s headline · {news.source}
+            </p>
+            <a
+              href={news.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-lg font-bold hover:underline"
+            >
+              {news.headline}
+            </a>
+          </div>
+          <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+            {news.captions.map((caption) => (
+              <li key={caption.id} className="flex items-center justify-between gap-4 p-4">
+                <p>{caption.text}</p>
+                <VoteButtons
+                  captionId={caption.id}
+                  score={caption.score}
+                  myVote={caption.myVote}
+                  signedIn={!!user}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <h1 className="mb-4 text-2xl font-bold">Rate the captions</h1>

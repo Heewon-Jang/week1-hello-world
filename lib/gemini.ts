@@ -74,18 +74,34 @@ export function describeImage(base64: string, mimeType: string) {
   ]);
 }
 
+const AUDIENCE =
+  "You write captions for a meme site for Columbia University students. " +
+  "The audience is chronically online college students who live in the " +
+  "dorms and are still figuring out New York City.";
+
+const STYLE =
+  "Vary the style: relatable student life, NYC observations, internet " +
+  "slang, deadpan. Keep it clever, not mean, and never punch down.";
+
+function parseCaptions(value: unknown, count: number) {
+  const captions = (Array.isArray(value) ? value : [])
+    .map((caption) => String(caption).trim())
+    .filter(Boolean)
+    .slice(0, count);
+  if (!captions.length) {
+    throw new Error("Gemini didn't return any captions.");
+  }
+  return captions;
+}
+
 // Step 2 of the prompt chain: description -> funny captions.
 export async function writeCaptions(description: string, count = 5) {
   const text = await generate(
     [
       {
         text:
-          `You write captions for a meme site for Columbia University students. ` +
-          `The audience is chronically online college students who live in the ` +
-          `dorms and are still figuring out New York City. Write ${count} short, ` +
-          `funny captions (under 120 characters each) for an image described below. ` +
-          `Vary the style: relatable student life, NYC observations, internet ` +
-          `slang, deadpan. Keep it clever, not mean, and never punch down.\n\n` +
+          `${AUDIENCE} Write ${count} short, funny captions (under 120 ` +
+          `characters each) for an image described below. ${STYLE}\n\n` +
           `Image description:\n${description}`,
       },
     ],
@@ -94,13 +110,42 @@ export async function writeCaptions(description: string, count = 5) {
       responseSchema: { type: "ARRAY", items: { type: "STRING" } },
     }
   );
+  return parseCaptions(JSON.parse(text), count);
+}
 
-  const captions = (JSON.parse(text) as unknown[])
-    .map((caption) => String(caption).trim())
-    .filter(Boolean)
-    .slice(0, count);
-  if (!captions.length) {
-    throw new Error("Gemini didn't return any captions.");
+// Picks the headline with the most comedic potential and captions it.
+export async function captionHeadline(headlines: string[], count = 5) {
+  const text = await generate(
+    [
+      {
+        text:
+          `${AUDIENCE} Below are today's headlines from campus and NYC news. ` +
+          `Pick the ONE headline that is best for light-hearted humor. Never ` +
+          `pick stories about death, violence, crime, assault, illness, ` +
+          `protests, war, or anything a reader could be hurt by; prefer quirky ` +
+          `campus life, food, transit, weather, sports, and city oddities. ` +
+          `Then write ${count} short, funny captions (under 120 characters ` +
+          `each) reacting to it. ${STYLE}\n\n` +
+          headlines.map((headline, i) => `${i}. ${headline}`).join("\n"),
+      },
+    ],
+    {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          index: { type: "INTEGER" },
+          captions: { type: "ARRAY", items: { type: "STRING" } },
+        },
+        required: ["index", "captions"],
+      },
+    }
+  );
+
+  const result = JSON.parse(text);
+  const index = Number(result.index);
+  if (!Number.isInteger(index) || !headlines[index]) {
+    throw new Error("Gemini picked a headline that doesn't exist.");
   }
-  return captions;
+  return { index, captions: parseCaptions(result.captions, count) };
 }
