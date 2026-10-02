@@ -1,33 +1,62 @@
 // Server-side only: uses the secret GEMINI_API_KEY.
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Models are tried in order; busy models (429/5xx) fall through to the next.
+const MODELS = (process.env.GEMINI_MODEL || "gemini-3.8-flash,gemini-3.5-flash,gemini-flash-latest")
+  .split(",")
+  .map((model) => model.trim());
 
 type Part =
   | { text: string }
   | { inline_data: { mime_type: string; data: string } };
 
+class RetryableError extends Error {}
+
 async function generate(parts: Part[], generationConfig?: object) {
+  let lastError: Error = new Error("No Gemini models configured.");
+
+  for (const model of MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await generateWith(model, parts, generationConfig);
+      } catch (error) {
+        if (!(error instanceof RetryableError)) throw error;
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
+async function generateWith(model: string, parts: Part[], generationConfig?: object) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set.");
   }
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({ contents: [{ parts }], generationConfig }),
-  });
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({ contents: [{ parts }], generationConfig }),
+    }
+  );
   const json = await res.json();
 
   if (!res.ok) {
-    throw new Error(json.error?.message ?? `Gemini request failed (${res.status}).`);
+    const message = json.error?.message ?? `Gemini request failed (${res.status}).`;
+    // Overloaded, rate limited, or unavailable to this key: try again / next model.
+    if (res.status === 429 || res.status >= 500 || res.status === 404) {
+      throw new RetryableError(message);
+    }
+    throw new Error(message);
   }
 
   const text: string | undefined = json.candidates?.[0]?.content?.parts
     ?.map((part: { text?: string }) => part.text ?? "")
     .join("");
   if (!text) {
-    throw new Error("Gemini returned an empty response.");
+    throw new RetryableError("Gemini returned an empty response.");
   }
   return text.trim();
 }
