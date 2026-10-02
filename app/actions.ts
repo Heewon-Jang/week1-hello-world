@@ -105,11 +105,10 @@ export async function uploadImage(
   }
   const [, mimeType, base64] = match;
 
-  let description: string;
-  let captions: string[];
+  let step1, step2;
   try {
-    description = await describeImage(base64, mimeType);
-    captions = await writeCaptions(description);
+    step1 = await describeImage(base64, mimeType);
+    step2 = await writeCaptions(step1.description);
   } catch (error) {
     return { error: `Couldn't caption that image: ${(error as Error).message}` };
   }
@@ -127,7 +126,14 @@ export async function uploadImage(
 
   const { data: image, error: imageError } = await supabase
     .from("images")
-    .insert({ user_id: user.id, storage_path: path, image_url: publicUrl, description })
+    .insert({
+      user_id: user.id,
+      storage_path: path,
+      image_url: publicUrl,
+      description: step1.description,
+      description_prompt: step1.prompt,
+      description_model: step1.model,
+    })
     .select("id")
     .single();
   if (imageError) {
@@ -136,7 +142,14 @@ export async function uploadImage(
 
   const { error: captionError } = await supabase
     .from("captions")
-    .insert(captions.map((text) => ({ image_id: image.id, text })));
+    .insert(
+      step2.captions.map((text) => ({
+        image_id: image.id,
+        text,
+        prompt: step2.prompt,
+        model: step2.model,
+      }))
+    );
   if (captionError) {
     return { error: captionError.message };
   }

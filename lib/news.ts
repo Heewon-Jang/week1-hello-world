@@ -60,7 +60,9 @@ export async function ensureTodaysNews() {
   const headlines = feeds.flatMap((feed) => (feed.status === "fulfilled" ? feed.value : []));
   if (!headlines.length) throw new Error("No news headlines available.");
 
-  const { index, captions } = await captionHeadline(headlines.map((h) => h.headline));
+  const { index, captions, prompt, model } = await captionHeadline(
+    headlines.map((h) => h.headline)
+  );
   const pick = headlines[index];
 
   const { data: news, error } = await supabase
@@ -74,6 +76,6 @@ export async function ensureTodaysNews() {
 
   const { error: captionError } = await supabase
     .from("captions")
-    .insert(captions.map((text) => ({ news_id: news.id, text })));
+    .insert(captions.map((text) => ({ news_id: news.id, text, prompt, model })));
   if (captionError) throw new Error(captionError.message);
 }

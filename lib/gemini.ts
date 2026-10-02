@@ -16,7 +16,7 @@ async function generate(parts: Part[], generationConfig?: object) {
   for (const model of MODELS) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        return await generateWith(model, parts, generationConfig);
+        return { text: await generateWith(model, parts, generationConfig), model };
       } catch (error) {
         if (!(error instanceof RetryableError)) throw error;
         lastError = error;
@@ -61,17 +61,19 @@ async function generateWith(model: string, parts: Part[], generationConfig?: obj
   return text.trim();
 }
 
+const DESCRIBE_PROMPT =
+  "Describe this image in 3-5 sentences. Cover who or what is in it, " +
+  "what is happening, the setting, facial expressions and any text " +
+  "visible in the image. Be specific and literal; do not try to be funny.";
+
 // Step 1 of the prompt chain: image -> plain text description.
-export function describeImage(base64: string, mimeType: string) {
-  return generate([
+export async function describeImage(base64: string, mimeType: string) {
+  const prompt = DESCRIBE_PROMPT;
+  const { text, model } = await generate([
     { inline_data: { mime_type: mimeType, data: base64 } },
-    {
-      text:
-        "Describe this image in 3-5 sentences. Cover who or what is in it, " +
-        "what is happening, the setting, facial expressions and any text " +
-        "visible in the image. Be specific and literal; do not try to be funny.",
-    },
+    { text: prompt },
   ]);
+  return { description: text, prompt, model };
 }
 
 const AUDIENCE =
@@ -94,58 +96,56 @@ function parseCaptions(value: unknown, count: number) {
   return captions;
 }
 
+export function captionPrompt(description: string, count = 5) {
+  return (
+    `${AUDIENCE} Write ${count} short, funny captions (under 120 ` +
+    `characters each) for an image described below. ${STYLE}\n\n` +
+    `Image description:\n${description}`
+  );
+}
+
 // Step 2 of the prompt chain: description -> funny captions.
 export async function writeCaptions(description: string, count = 5) {
-  const text = await generate(
-    [
-      {
-        text:
-          `${AUDIENCE} Write ${count} short, funny captions (under 120 ` +
-          `characters each) for an image described below. ${STYLE}\n\n` +
-          `Image description:\n${description}`,
-      },
-    ],
-    {
-      responseMimeType: "application/json",
-      responseSchema: { type: "ARRAY", items: { type: "STRING" } },
-    }
+  const prompt = captionPrompt(description, count);
+  const { text, model } = await generate([{ text: prompt }], {
+    responseMimeType: "application/json",
+    responseSchema: { type: "ARRAY", items: { type: "STRING" } },
+  });
+  return { captions: parseCaptions(JSON.parse(text), count), prompt, model };
+}
+
+function headlinePrompt(headlines: string[], count = 5) {
+  return (
+    `${AUDIENCE} Below are today's headlines from campus and NYC news. ` +
+    `Pick the ONE headline that is best for light-hearted humor. Never ` +
+    `pick stories about death, violence, crime, assault, illness, ` +
+    `protests, war, or anything a reader could be hurt by; prefer quirky ` +
+    `campus life, food, transit, weather, sports, and city oddities. ` +
+    `Then write ${count} short, funny captions (under 120 characters ` +
+    `each) reacting to it. ${STYLE}\n\n` +
+    headlines.map((headline, i) => `${i}. ${headline}`).join("\n")
   );
-  return parseCaptions(JSON.parse(text), count);
 }
 
 // Picks the headline with the most comedic potential and captions it.
 export async function captionHeadline(headlines: string[], count = 5) {
-  const text = await generate(
-    [
-      {
-        text:
-          `${AUDIENCE} Below are today's headlines from campus and NYC news. ` +
-          `Pick the ONE headline that is best for light-hearted humor. Never ` +
-          `pick stories about death, violence, crime, assault, illness, ` +
-          `protests, war, or anything a reader could be hurt by; prefer quirky ` +
-          `campus life, food, transit, weather, sports, and city oddities. ` +
-          `Then write ${count} short, funny captions (under 120 characters ` +
-          `each) reacting to it. ${STYLE}\n\n` +
-          headlines.map((headline, i) => `${i}. ${headline}`).join("\n"),
+  const prompt = headlinePrompt(headlines, count);
+  const { text, model } = await generate([{ text: prompt }], {
+    responseMimeType: "application/json",
+    responseSchema: {
+      type: "OBJECT",
+      properties: {
+        index: { type: "INTEGER" },
+        captions: { type: "ARRAY", items: { type: "STRING" } },
       },
-    ],
-    {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          index: { type: "INTEGER" },
-          captions: { type: "ARRAY", items: { type: "STRING" } },
-        },
-        required: ["index", "captions"],
-      },
-    }
-  );
+      required: ["index", "captions"],
+    },
+  });
 
   const result = JSON.parse(text);
   const index = Number(result.index);
   if (!Number.isInteger(index) || !headlines[index]) {
     throw new Error("Gemini picked a headline that doesn't exist.");
   }
-  return { index, captions: parseCaptions(result.captions, count) };
+  return { index, captions: parseCaptions(result.captions, count), prompt, model };
 }
