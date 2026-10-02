@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updateProfile } from "../actions";
 import NameFields from "../name-fields";
+import { resizeImage } from "@/lib/resize-image";
 
 type Props = {
   firstName?: string | null;
@@ -11,40 +12,6 @@ type Props = {
 };
 
 const AVATAR_SIZE = 256;
-
-// Crops the photo to a square and shrinks it to a small JPEG data URL.
-function resizeImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const side = Math.min(img.width, img.height);
-      const canvas = document.createElement("canvas");
-      canvas.width = AVATAR_SIZE;
-      canvas.height = AVATAR_SIZE;
-      canvas
-        .getContext("2d")!
-        .drawImage(
-          img,
-          (img.width - side) / 2,
-          (img.height - side) / 2,
-          side,
-          side,
-          0,
-          0,
-          AVATAR_SIZE,
-          AVATAR_SIZE
-        );
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read that image."));
-    };
-    img.src = url;
-  });
-}
 
 export default function ProfileForm({ firstName, lastName, avatarUrl }: Props) {
   const [state, action, pending] = useActionState(updateProfile, {});
@@ -56,7 +23,7 @@ export default function ProfileForm({ firstName, lastName, avatarUrl }: Props) {
     if (!file) return;
     try {
       setPhotoError("");
-      setAvatar(await resizeImage(file));
+      setAvatar(await resizeImage(file, AVATAR_SIZE, { square: true }));
     } catch (error) {
       setPhotoError((error as Error).message);
     }

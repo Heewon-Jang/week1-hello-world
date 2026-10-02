@@ -9,13 +9,16 @@ export default async function Header() {
   return (
     <header className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
       <Link href="/" className="text-lg font-bold">
-        Jokes
+        Caption Rater
       </Link>
 
       {user ? (
         <nav className="flex items-center gap-4">
-          <Link href="/members" className="hover:underline">
-            Members
+          <Link href="/upload" className="hover:underline">
+            Upload
+          </Link>
+          <Link href="/top" className="hover:underline">
+            Top
           </Link>
           <Link href="/profile" className="flex items-center gap-2 hover:underline">
             {profile?.avatar_url ? (

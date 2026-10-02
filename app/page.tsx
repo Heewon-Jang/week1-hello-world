@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getUserAndProfile, needsName } from "@/lib/supabase/server";
+import { getFeed } from "@/lib/captions";
+import VoteButtons from "./vote-buttons";
 
 export default async function Home() {
   const { supabase, user, profile } = await getUserAndProfile();
@@ -10,38 +12,71 @@ export default async function Home() {
     redirect("/onboarding");
   }
 
-  const { data: jokes, error } = await supabase
-    .from("jokes")
-    .select("*")
-    .order("id");
-
-  if (error) {
-    return <main className="p-6">Error: {error.message}</main>;
+  let images;
+  try {
+    images = await getFeed(supabase, user?.id ?? null);
+  } catch (error) {
+    return <main className="p-6">Error: {(error as Error).message}</main>;
   }
 
   return (
-    <main className="p-6">
+    <main className="mx-auto w-full max-w-2xl p-6">
       {user ? (
         <p className="mb-6 rounded-lg bg-green-50 p-4 text-green-900 dark:bg-green-950 dark:text-green-100">
-          Welcome back, {profile?.first_name}! Check out the{" "}
-          <Link href="/members" className="font-semibold underline">
-            members-only page
-          </Link>
-          .
+          Hey {profile?.first_name}! Vote on the funniest captions, or{" "}
+          <Link href="/upload" className="font-semibold underline">
+            upload a photo
+          </Link>{" "}
+          and let AI caption it.
         </p>
       ) : (
         <p className="mb-6 rounded-lg bg-gray-100 p-4 dark:bg-gray-900">
-          Sign in to unlock the members-only page and your profile.
+          Sign in to vote on captions and upload your own photos.
         </p>
       )}
 
-      <h1 className="mb-4 text-2xl font-bold">Jokes from Supabase</h1>
+      <h1 className="mb-4 text-2xl font-bold">Rate the captions</h1>
 
-      <ul className="list-disc space-y-2 pl-6">
-        {jokes?.map((joke) => (
-          <li key={joke.id}>{joke.joke}</li>
+      {images.length === 0 && (
+        <p className="text-gray-600 dark:text-gray-400">
+          No images yet.{" "}
+          {user && (
+            <Link href="/upload" className="font-semibold underline">
+              Upload the first one!
+            </Link>
+          )}
+        </p>
+      )}
+
+      <div className="space-y-8">
+        {images.map((image) => (
+          <article
+            key={image.id}
+            id={`image-${image.id}`}
+            className="scroll-mt-6 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image.image_url}
+              alt={image.description ?? "Uploaded image"}
+              className="max-h-[32rem] w-full bg-gray-100 object-contain dark:bg-gray-900"
+            />
+            <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+              {image.captions.map((caption) => (
+                <li key={caption.id} className="flex items-center justify-between gap-4 p-4">
+                  <p>{caption.text}</p>
+                  <VoteButtons
+                    captionId={caption.id}
+                    score={caption.score}
+                    myVote={caption.myVote}
+                    signedIn={!!user}
+                  />
+                </li>
+              ))}
+            </ul>
+          </article>
         ))}
-      </ul>
+      </div>
     </main>
   );
 }

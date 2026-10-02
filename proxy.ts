@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Pages that only logged-in users can see.
-const PROTECTED_PATHS = ["/members", "/profile", "/onboarding"];
+const PROTECTED_PATHS = ["/members", "/profile", "/onboarding", "/upload", "/top"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
