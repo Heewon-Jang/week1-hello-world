@@ -7,7 +7,7 @@ export const START_RATING = 1000;
 const K_FACTOR = 32;
 const PAGE_SIZE = 1000;
 
-type BattleRow = { user_id: string; winner_id: number; loser_id: number };
+type BattleRow = { user_id: string; winner_id: number; loser_id: number; created_at: string };
 
 export type BattleCaption = { id: number; text: string; rating: number };
 
@@ -32,7 +32,7 @@ export async function getAllBattles(supabase: Supabase) {
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabase
       .from("caption_battles")
-      .select("user_id, winner_id, loser_id")
+      .select("user_id, winner_id, loser_id, created_at")
       .order("id", { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(error.message);

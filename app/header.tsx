@@ -13,7 +13,7 @@ export default async function Header() {
       </Link>
 
       {user ? (
-        <nav className="flex items-center gap-4">
+        <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
           <Link href="/battle" className="hover:underline">
             Battle
           </Link>
@@ -22,6 +22,9 @@ export default async function Header() {
           </Link>
           <Link href="/top" className="hover:underline">
             Top
+          </Link>
+          <Link href="/me" className="hover:underline">
+            My Stats
           </Link>
           <Link href="/profile" className="flex items-center gap-2 hover:underline">
             {profile?.avatar_url ? (
