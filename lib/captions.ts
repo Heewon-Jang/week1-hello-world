@@ -20,7 +20,7 @@ export type FeedImage = {
 const SIGNED_URL_SECONDS = 60 * 60;
 
 // The images bucket is private, so each photo gets a short-lived signed URL.
-async function signImageUrls(supabase: Supabase, paths: string[]) {
+export async function signImageUrls(supabase: Supabase, paths: string[]) {
   const urls = new Map<string, string>();
   if (!paths.length) return urls;
 

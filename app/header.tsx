@@ -14,6 +14,9 @@ export default async function Header() {
 
       {user ? (
         <nav className="flex items-center gap-4">
+          <Link href="/battle" className="hover:underline">
+            Battle
+          </Link>
           <Link href="/upload" className="hover:underline">
             Upload
           </Link>

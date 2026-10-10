@@ -47,7 +47,11 @@ export default async function Home() {
   return (
     <main className="mx-auto w-full max-w-2xl p-6">
       <p className="mb-6 rounded-lg bg-green-50 p-4 text-green-900 dark:bg-green-950 dark:text-green-100">
-        Hey {profile?.first_name}! Vote on the funniest captions, or{" "}
+        Hey {profile?.first_name}! Vote on the funniest captions, pick winners in a{" "}
+        <Link href="/battle" className="font-semibold underline">
+          caption battle ⚔️
+        </Link>
+        , or{" "}
         <Link href="/upload" className="font-semibold underline">
           upload a photo
         </Link>{" "}

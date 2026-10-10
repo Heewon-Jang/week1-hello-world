@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { describeImage, writeCaptions } from "@/lib/gemini";
+import { computeRatings, getAllBattles, pairKey, START_RATING } from "@/lib/battles";
 
 export type FormState = { error?: string; message?: string };
 
@@ -194,6 +195,71 @@ export async function voteOnCaption(captionId: number, vote: 1 | -1) {
 
   revalidatePath("/", "layout");
   return {};
+}
+
+export type BattleResult = {
+  error?: string;
+  agreePercent?: number;
+  totalVotes?: number;
+  ratings?: Record<number, number>;
+};
+
+// Records which of two captions (on the same photo or headline) the user
+// found funnier, then reports how others voted and the new Elo ratings.
+export async function recordBattle(winnerId: number, loserId: number): Promise<BattleResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Sign in to battle." };
+  }
+  if (!Number.isInteger(winnerId) || !Number.isInteger(loserId) || winnerId === loserId) {
+    return { error: "Invalid battle." };
+  }
+
+  const { data: captions, error: captionError } = await supabase
+    .from("captions")
+    .select("id, image_id, news_id")
+    .in("id", [winnerId, loserId]);
+  if (captionError) {
+    return { error: captionError.message };
+  }
+  const [a, b] = captions ?? [];
+  if (!a || !b || a.image_id !== b.image_id || a.news_id !== b.news_id) {
+    return { error: "Those captions aren't for the same post." };
+  }
+
+  const { error } = await supabase
+    .from("caption_battles")
+    .insert({ user_id: user.id, winner_id: winnerId, loser_id: loserId });
+  if (error) {
+    return {
+      error: error.code === "23505" ? "You already judged this pair." : error.message,
+    };
+  }
+
+  let battles;
+  try {
+    battles = await getAllBattles(supabase);
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  const pair = pairKey(winnerId, loserId);
+  const pairBattles = battles.filter((b) => pairKey(b.winner_id, b.loser_id) === pair);
+  const agreed = pairBattles.filter((b) => b.winner_id === winnerId).length;
+  const { ratings } = computeRatings(battles);
+
+  return {
+    agreePercent: Math.round((agreed / pairBattles.length) * 100),
+    totalVotes: pairBattles.length,
+    ratings: {
+      [winnerId]: Math.round(ratings.get(winnerId) ?? START_RATING),
+      [loserId]: Math.round(ratings.get(loserId) ?? START_RATING),
+    },
+  };
 }
 
 export async function signOut() {
