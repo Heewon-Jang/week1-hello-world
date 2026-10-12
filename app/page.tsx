@@ -7,19 +7,46 @@ import { ensureTodaysNews, newsDate } from "@/lib/news";
 import LoginButton from "./login-button";
 import VoteButtons from "./vote-buttons";
 
-export default async function Home() {
+const HOW_IT_WORKS = [
+  { emoji: "📸", title: "Upload a photo", text: "AI looks at it and writes 5 captions." },
+  { emoji: "👍", title: "Vote", text: "▲ the funny captions, ▼ the ones that miss." },
+  { emoji: "⚔️", title: "Battle", text: "Pick the funnier of two captions to rank them." },
+];
+
+function HowItWorks() {
+  return (
+    <ol className="grid gap-3 sm:grid-cols-3">
+      {HOW_IT_WORKS.map((step, index) => (
+        <li key={step.title} className="rounded-xl border border-gray-200 p-4 text-left dark:border-gray-800">
+          <p className="text-2xl">{step.emoji}</p>
+          <p className="mt-2 font-semibold">
+            {index + 1}. {step.title}
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{step.text}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export default async function Home({ searchParams }: PageProps<"/">) {
   const { supabase, user, profile } = await getUserAndProfile();
+  const newImageId = Number((await searchParams).new) || null;
 
   // Content is members-only (also enforced by RLS): show a sign-in page.
   if (!user) {
     return (
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-        <h1 className="text-3xl font-bold">Caption Rater 😂</h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Vote on AI-written captions for photos from around Columbia and NYC,
-          plus a fresh campus news headline every day.
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6 p-6 text-center">
+        <h1 className="text-4xl font-bold">Caption Rater 😂</h1>
+        <p className="max-w-md text-lg text-gray-600 dark:text-gray-400">
+          Upload a photo, let AI caption it, and vote on the funniest captions
+          from around Columbia and NYC.
         </p>
         <LoginButton />
+        <p className="text-sm text-gray-500">Sign in with your Google account to get started.</p>
+        <div className="mt-6 w-full">
+          <HowItWorks />
+        </div>
       </main>
     );
   }
@@ -46,22 +73,43 @@ export default async function Home() {
 
   return (
     <main className="mx-auto w-full max-w-2xl p-6">
-      <p className="mb-6 rounded-lg bg-green-50 p-4 text-green-900 dark:bg-green-950 dark:text-green-100">
-        Hey {profile?.first_name}! Vote on the funniest captions, pick winners in a{" "}
-        <Link href="/battle" className="font-semibold underline">
-          caption battle ⚔️
-        </Link>
-        , or{" "}
-        <Link href="/upload" className="font-semibold underline">
-          upload a photo
-        </Link>{" "}
-        and let AI caption it.
-      </p>
+      {newImageId ? (
+        <div className="mb-6 rounded-xl bg-green-50 p-4 text-green-900 dark:bg-green-950 dark:text-green-100">
+          <p className="font-semibold">🎉 Your photo is live!</p>
+          <p className="text-sm">
+            AI wrote captions for it below. Vote on your favorites, or{" "}
+            <Link href="/upload" className="font-semibold underline">
+              upload another
+            </Link>
+            .
+          </p>
+        </div>
+      ) : (
+        <section className="mb-8">
+          <h1 className="mb-1 text-2xl font-bold">Hey {profile?.first_name} 👋</h1>
+          <p className="mb-4 text-gray-600 dark:text-gray-400">Here&apos;s how Caption Rater works:</p>
+          <HowItWorks />
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/upload"
+              className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow hover:bg-blue-700"
+            >
+              📸 Upload a photo
+            </Link>
+            <Link
+              href="/battle"
+              className="rounded-lg border border-gray-300 px-4 py-2 font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-900"
+            >
+              ⚔️ Start a battle
+            </Link>
+          </div>
+        </section>
+      )}
 
       {news && (
         <section
           id="news"
-          className="mb-10 scroll-mt-6 overflow-hidden rounded-lg border border-amber-300 dark:border-amber-800"
+          className="mb-10 scroll-mt-24 overflow-hidden rounded-xl border border-amber-300 dark:border-amber-800"
         >
           <div className="bg-amber-50 p-4 dark:bg-amber-950">
             <p className="mb-1 text-sm font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
@@ -92,15 +140,21 @@ export default async function Home() {
         </section>
       )}
 
-      <h1 className="mb-4 text-2xl font-bold">Rate the captions</h1>
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold">Rate the captions</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Tap ▲ if a caption made you laugh, ▼ if it missed. Tap again to undo.
+        </p>
+      </div>
 
       {images.length === 0 && (
-        <p className="text-gray-600 dark:text-gray-400">
-          No images yet.{" "}
-          <Link href="/upload" className="font-semibold underline">
-            Upload the first one!
+        <div className="rounded-xl border-2 border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
+          <p className="text-4xl">📷</p>
+          <p className="mt-2 font-semibold">No photos yet</p>
+          <Link href="/upload" className="mt-3 inline-block rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">
+            Upload the first one
           </Link>
-        </p>
+        </div>
       )}
 
       <div className="space-y-8">
@@ -108,7 +162,11 @@ export default async function Home() {
           <article
             key={image.id}
             id={`image-${image.id}`}
-            className="scroll-mt-6 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+            className={`scroll-mt-24 overflow-hidden rounded-xl border shadow-sm ${
+              image.id === newImageId
+                ? "border-blue-500 ring-2 ring-blue-500"
+                : "border-gray-200 dark:border-gray-800"
+            }`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -116,6 +174,14 @@ export default async function Home() {
               alt={image.description ?? "Uploaded image"}
               className="max-h-[32rem] w-full bg-gray-100 object-contain dark:bg-gray-900"
             />
+            {image.description && (
+              <details className="border-b border-gray-200 px-4 py-2 text-sm dark:border-gray-800">
+                <summary className="cursor-pointer text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+                  🤖 What the AI saw
+                </summary>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">{image.description}</p>
+              </details>
+            )}
             <ul className="divide-y divide-gray-200 dark:divide-gray-800">
               {image.captions.map((caption) => (
                 <li key={caption.id} className="flex items-center justify-between gap-4 p-4">

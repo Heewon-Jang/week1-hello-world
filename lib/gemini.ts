@@ -62,13 +62,22 @@ async function generateWith(model: string, parts: Part[], generationConfig?: obj
 }
 
 const DESCRIBE_PROMPT =
-  "Describe this image in 3-5 sentences. Cover who or what is in it, " +
-  "what is happening, the setting, facial expressions and any text " +
-  "visible in the image. Be specific and literal; do not try to be funny.";
+  "Describe this image in 4-6 sentences. Cover the main subject first, " +
+  "then what is happening, the setting, notable objects, colors, facial " +
+  "expressions or body language, and any text visible in the image. Be " +
+  "specific and literal; only mention what is actually visible, and do " +
+  "not try to be funny.";
+
+function withHint(prompt: string, hint?: string) {
+  return hint
+    ? `${prompt}\n\nThe uploader added this context (trust it unless the ` +
+        `image clearly contradicts it): ${hint}`
+    : prompt;
+}
 
 // Step 1 of the prompt chain: image -> plain text description.
-export async function describeImage(base64: string, mimeType: string) {
-  const prompt = DESCRIBE_PROMPT;
+export async function describeImage(base64: string, mimeType: string, hint?: string) {
+  const prompt = withHint(DESCRIBE_PROMPT, hint);
   const { text, model } = await generate([
     { inline_data: { mime_type: mimeType, data: base64 } },
     { text: prompt },
@@ -82,8 +91,17 @@ const AUDIENCE =
   "dorms and are still figuring out New York City.";
 
 const STYLE =
-  "Vary the style: relatable student life, NYC observations, internet " +
-  "slang, deadpan. Keep it clever, not mean, and never punch down.";
+  "Vary the style: relatable student life, internet slang, deadpan, " +
+  "wholesome. Keep it clever, not mean, and never punch down.";
+
+// Keeps photo captions about the actual photo instead of generic jokes.
+const GROUNDING =
+  "Every caption must clearly be about THIS specific image: refer to a " +
+  "concrete detail you can see (the subject, an action, an object, an " +
+  "expression, the setting, or visible text). Someone reading the caption " +
+  "next to the photo should instantly get the connection. Do not invent " +
+  "people, places, or events that aren't shown. Only joke about Columbia " +
+  "or NYC if the image is actually about them.";
 
 function parseCaptions(value: unknown, count: number) {
   const captions = (Array.isArray(value) ? value : [])
@@ -96,21 +114,30 @@ function parseCaptions(value: unknown, count: number) {
   return captions;
 }
 
-export function captionPrompt(description: string, count = 5) {
-  return (
-    `${AUDIENCE} Write ${count} short, funny captions (under 120 ` +
-    `characters each) for an image described below. ${STYLE}\n\n` +
-    `Image description:\n${description}`
+export function captionPrompt(description: string, count = 5, hint?: string) {
+  return withHint(
+    `${AUDIENCE} Look at the attached image and write ${count} short, funny ` +
+      `captions (under 120 characters each) for it. ${GROUNDING} ${STYLE}\n\n` +
+      `A literal description of the image, to help you notice details:\n${description}`,
+    hint
   );
 }
 
-// Step 2 of the prompt chain: description -> funny captions.
-export async function writeCaptions(description: string, count = 5) {
-  const prompt = captionPrompt(description, count);
-  const { text, model } = await generate([{ text: prompt }], {
-    responseMimeType: "application/json",
-    responseSchema: { type: "ARRAY", items: { type: "STRING" } },
-  });
+// Step 2 of the prompt chain: image + description -> funny captions.
+// The model sees the photo again so captions stay tied to what's in it.
+export async function writeCaptions(
+  image: { base64: string; mimeType: string },
+  description: string,
+  { count = 5, hint }: { count?: number; hint?: string } = {}
+) {
+  const prompt = captionPrompt(description, count, hint);
+  const { text, model } = await generate(
+    [{ inline_data: { mime_type: image.mimeType, data: image.base64 } }, { text: prompt }],
+    {
+      responseMimeType: "application/json",
+      responseSchema: { type: "ARRAY", items: { type: "STRING" } },
+    }
+  );
   return { captions: parseCaptions(JSON.parse(text), count), prompt, model };
 }
 

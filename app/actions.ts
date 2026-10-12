@@ -83,9 +83,10 @@ export async function updateProfile(
 
 // Uploaded images are resized in the browser; the Server Action limit is 1MB.
 const MAX_IMAGE_LENGTH = 950_000;
+const MAX_HINT_LENGTH = 200;
 
 // Upload an image, then run the prompt chain:
-// image -> description (LLM call 1) -> funny captions (LLM call 2).
+// image -> description (LLM call 1) -> image + description -> captions (LLM call 2).
 export async function uploadImage(
   _prev: FormState,
   formData: FormData
@@ -105,11 +106,12 @@ export async function uploadImage(
     return { error: "Choose an image to upload." };
   }
   const [, mimeType, base64] = match;
+  const hint = String(formData.get("hint") ?? "").trim().slice(0, MAX_HINT_LENGTH) || undefined;
 
   let step1, step2;
   try {
-    step1 = await describeImage(base64, mimeType);
-    step2 = await writeCaptions(step1.description);
+    step1 = await describeImage(base64, mimeType, hint);
+    step2 = await writeCaptions({ base64, mimeType }, step1.description, { hint });
   } catch (error) {
     return { error: `Couldn't caption that image: ${(error as Error).message}` };
   }
@@ -156,7 +158,7 @@ export async function uploadImage(
   }
 
   revalidatePath("/", "layout");
-  redirect(`/#image-${image.id}`);
+  redirect(`/?new=${image.id}#image-${image.id}`);
 }
 
 // Records the user's vote on a caption. Voting the same way again removes it.

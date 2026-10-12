@@ -42,6 +42,7 @@ export default function VoteButtons({ captionId, score, myVote, signedIn }: Prop
     <div className="flex shrink-0 items-center gap-2">
       <button
         aria-label="Upvote"
+        title={optimistic.myVote === 1 ? "Remove upvote" : "Funny!"}
         aria-pressed={optimistic.myVote === 1}
         disabled={pending}
         onClick={() => handleVote(1)}
@@ -52,6 +53,7 @@ export default function VoteButtons({ captionId, score, myVote, signedIn }: Prop
       <span className="w-6 text-center font-semibold tabular-nums">{optimistic.score}</span>
       <button
         aria-label="Downvote"
+        title={optimistic.myVote === -1 ? "Remove downvote" : "Not funny"}
         aria-pressed={optimistic.myVote === -1}
         disabled={pending}
         onClick={() => handleVote(-1)}

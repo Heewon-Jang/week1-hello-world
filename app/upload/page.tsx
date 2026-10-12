@@ -11,8 +11,8 @@ export default async function UploadPage() {
     <main className="mx-auto w-full max-w-md p-6">
       <h1 className="mb-2 text-2xl font-bold">Upload a photo 📸</h1>
       <p className="mb-6 text-gray-600 dark:text-gray-400">
-        Snap something from campus or around the city. AI will describe it,
-        then write captions for everyone to vote on.
+        Snap something from campus or around the city. AI looks at your photo,
+        writes 5 captions about it, and everyone votes on the funniest one.
       </p>
       <UploadForm />
     </main>
