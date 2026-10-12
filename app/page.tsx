@@ -5,7 +5,7 @@ import { getUserAndProfile, needsName } from "@/lib/supabase/server";
 import { getFeed, getLatestNews } from "@/lib/captions";
 import { ensureTodaysNews, newsDate } from "@/lib/news";
 import LoginButton from "./login-button";
-import VoteButtons from "./vote-buttons";
+import CaptionList from "./caption-list";
 
 const HOW_IT_WORKS = [
   { emoji: "📸", title: "Upload a photo", text: "AI looks at it and writes 5 captions." },
@@ -27,6 +27,17 @@ function HowItWorks() {
       ))}
     </ol>
   );
+}
+
+function timeAgo(date: string) {
+  const minutes = Math.round((Date.now() - new Date(date).getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export default async function Home({ searchParams }: PageProps<"/">) {
@@ -92,15 +103,17 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
               href="/upload"
-              className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow hover:bg-blue-700"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow hover:bg-blue-700"
             >
-              📸 Upload a photo
+              <span>📸</span>
+              Upload a photo
             </Link>
             <Link
               href="/battle"
-              className="rounded-lg border border-gray-300 px-4 py-2 font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-900"
+              className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-900"
             >
-              ⚔️ Start a battle
+              <span>⚔️</span>
+              Start a battle
             </Link>
           </div>
         </section>
@@ -112,8 +125,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           className="mb-10 scroll-mt-24 overflow-hidden rounded-xl border border-amber-300 dark:border-amber-800"
         >
           <div className="bg-amber-50 p-4 dark:bg-amber-950">
-            <p className="mb-1 text-sm font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
-              📰 Today&apos;s headline · {news.source}
+            <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+              <span>📰</span>
+              Today&apos;s headline · {news.source}
             </p>
             <a
               href={news.url}
@@ -121,22 +135,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               rel="noopener noreferrer"
               className="text-lg font-bold hover:underline"
             >
-              {news.headline}
+              {news.headline} <span className="text-sm font-normal text-amber-700 dark:text-amber-400">↗</span>
             </a>
           </div>
-          <ul className="divide-y divide-gray-200 dark:divide-gray-800">
-            {news.captions.map((caption) => (
-              <li key={caption.id} className="flex items-center justify-between gap-4 p-4">
-                <p>{caption.text}</p>
-                <VoteButtons
-                  captionId={caption.id}
-                  score={caption.score}
-                  myVote={caption.myVote}
-                  signedIn
-                />
-              </li>
-            ))}
-          </ul>
+          <CaptionList captions={news.captions} />
         </section>
       )}
 
@@ -168,6 +170,20 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 : "border-gray-200 dark:border-gray-800"
             }`}
           >
+            <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+              <span className="flex items-center gap-2 font-medium">
+                {image.mine ? (
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                    Your photo
+                  </span>
+                ) : (
+                  <span className="text-gray-600 dark:text-gray-400">📷 Community photo</span>
+                )}
+              </span>
+              <time dateTime={image.created_at} className="text-gray-500">
+                {timeAgo(image.created_at)}
+              </time>
+            </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image.image_url}
@@ -176,25 +192,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             />
             {image.description && (
               <details className="border-b border-gray-200 px-4 py-2 text-sm dark:border-gray-800">
-                <summary className="cursor-pointer text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
-                  🤖 What the AI saw
+                <summary className="cursor-pointer select-none text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+                  <span className="ml-1">🤖 What the AI saw</span>
                 </summary>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">{image.description}</p>
               </details>
             )}
-            <ul className="divide-y divide-gray-200 dark:divide-gray-800">
-              {image.captions.map((caption) => (
-                <li key={caption.id} className="flex items-center justify-between gap-4 p-4">
-                  <p>{caption.text}</p>
-                  <VoteButtons
-                    captionId={caption.id}
-                    score={caption.score}
-                    myVote={caption.myVote}
-                    signedIn
-                  />
-                </li>
-              ))}
-            </ul>
+            <CaptionList captions={image.captions} />
           </article>
         ))}
       </div>

@@ -84,7 +84,7 @@ export default function UploadForm() {
             <img src={image} alt="Your upload" className="max-h-96 w-full rounded-lg object-contain" />
           ) : (
             <>
-              <span className="text-4xl">🖼️</span>
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-3xl dark:bg-blue-950">🖼️</span>
               <span className="font-semibold">Click to choose a photo</span>
               <span className="text-sm text-gray-500">or drag and drop it here · JPG, PNG, HEIC</span>
             </>
@@ -115,7 +115,7 @@ export default function UploadForm() {
           name="hint"
           maxLength={200}
           disabled={pending}
-          placeholder="e.g. my roommate after her first 8am, Butler Library during finals"
+          placeholder="e.g. my roommate after her first 8am"
           className="w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700"
         />
         <p className="mt-1 text-sm text-gray-500">
@@ -134,7 +134,11 @@ export default function UploadForm() {
         <StepLabel number={3} text="Let AI caption it" />
         <button
           disabled={!image || pending}
-          className="w-full rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white shadow hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+          className={`w-full rounded-lg px-5 py-3 font-semibold shadow transition cursor-pointer disabled:cursor-not-allowed ${
+            image || pending
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-gray-200 text-gray-500 shadow-none dark:bg-gray-800 dark:text-gray-400"
+          } ${pending ? "opacity-90" : ""}`}
         >
           {pending ? (
             <span className="flex items-center justify-center gap-2">

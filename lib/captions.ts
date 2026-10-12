@@ -14,6 +14,7 @@ export type FeedImage = {
   image_url: string;
   description: string | null;
   created_at: string;
+  mine: boolean;
   captions: Caption[];
 };
 
@@ -39,7 +40,7 @@ export async function signImageUrls(supabase: Supabase, paths: string[]) {
 export async function getFeed(supabase: Supabase, userId: string, limit = 30) {
   const { data: images, error } = await supabase
     .from("images")
-    .select("id, storage_path, description, created_at, captions(id, text)")
+    .select("id, user_id, storage_path, description, created_at, captions(id, text)")
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -57,6 +58,7 @@ export async function getFeed(supabase: Supabase, userId: string, limit = 30) {
       image_url: urls.get(image.storage_path) ?? "",
       description: image.description,
       created_at: image.created_at,
+      mine: image.user_id === userId,
       captions: image.captions
         .map((c) => ({
           ...c,

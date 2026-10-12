@@ -33,10 +33,13 @@ export default function VoteButtons({ captionId, score, myVote, signedIn }: Prop
     });
   };
 
-  const buttonClass = (active: boolean, color: string) =>
-    `flex h-8 w-8 items-center justify-center rounded-full border text-lg cursor-pointer disabled:opacity-60 ${
-      active ? color : "border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-900"
+  const buttonClass = (active: boolean, color: string, hover: string) =>
+    `flex h-8 w-8 items-center justify-center rounded-full border text-sm transition active:scale-90 cursor-pointer disabled:opacity-60 ${
+      active ? color : `border-gray-300 text-gray-500 dark:border-gray-700 ${hover}`
     }`;
+
+  const scoreColor =
+    optimistic.score > 0 ? "text-green-600" : optimistic.score < 0 ? "text-red-600" : "text-gray-500";
 
   return (
     <div className="flex shrink-0 items-center gap-2">
@@ -46,18 +49,18 @@ export default function VoteButtons({ captionId, score, myVote, signedIn }: Prop
         aria-pressed={optimistic.myVote === 1}
         disabled={pending}
         onClick={() => handleVote(1)}
-        className={buttonClass(optimistic.myVote === 1, "border-green-600 bg-green-600 text-white")}
+        className={buttonClass(optimistic.myVote === 1, "border-green-600 bg-green-600 text-white", "hover:border-green-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950")}
       >
         ▲
       </button>
-      <span className="w-6 text-center font-semibold tabular-nums">{optimistic.score}</span>
+      <span className={`w-6 text-center font-semibold tabular-nums ${scoreColor}`}>{optimistic.score}</span>
       <button
         aria-label="Downvote"
         title={optimistic.myVote === -1 ? "Remove downvote" : "Not funny"}
         aria-pressed={optimistic.myVote === -1}
         disabled={pending}
         onClick={() => handleVote(-1)}
-        className={buttonClass(optimistic.myVote === -1, "border-red-600 bg-red-600 text-white")}
+        className={buttonClass(optimistic.myVote === -1, "border-red-600 bg-red-600 text-white", "hover:border-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950")}
       >
         ▼
       </button>

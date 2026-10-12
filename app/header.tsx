@@ -10,8 +10,9 @@ export default async function Header() {
   return (
     <header className="sticky top-0 z-10 border-b border-gray-200 bg-background/90 backdrop-blur dark:border-gray-800">
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="text-lg font-bold">
-          😂 Caption Rater
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold">
+          <span>😂</span>
+          Caption Rater
         </Link>
 
         {user ? (
